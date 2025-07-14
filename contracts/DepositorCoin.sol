@@ -7,9 +7,8 @@ contract DepositorCoin is ERC20 {
     address public owner;
     constructor(
         string memory _name,
-        string memory _symbol,
-        uint8 _decimal
-    ) ERC20(_name, _symbol, _decimal) {
+        string memory _symbol
+    ) ERC20(_name, _symbol, 18) {
         owner = msg.sender;
     }
 

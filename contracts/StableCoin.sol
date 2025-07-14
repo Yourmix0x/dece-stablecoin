@@ -8,9 +8,8 @@ contract StableCoin is ERC20 {
     DepositorCoin public depositorCoin;
     constructor(
         string memory _name,
-        string memory _symbol,
-        uint8 _decimal
-    ) ERC20(_name, _symbol, _decimal) {}
+        string memory _symbol
+    ) ERC20(_name, _symbol, 18) {}
 
     function mint() external payable {
         uint256 ethUsdPrice = 1000;
@@ -25,5 +24,20 @@ contract StableCoin is ERC20 {
         uint256 refundingEth = burnStableCoinAmount / ethUsdPrice;
         (bool success, ) = msg.sender.call{value: refundingEth}("");
         require(success, "SCT: Burn refund transaction failed");
+    }
+
+    function depositorCollateralBuffer() external payable {
+        uint256 surplusUsd = 500;
+        uint256 ethUsdPrice = 1000;
+
+        // usdInDpcPrice = 200 / 500
+        uint256 usdInDpcPrice = depositorCoin.totalSupply() / surplusUsd;
+
+        // mintDepositorCoinAmount = 0.5e18 * 1000 * 0.5 = 250e18
+        uint256 mintDepositorCoinAmount = msg.value *
+            ethUsdPrice *
+            usdInDpcPrice;
+
+        depositorCoin.mint(msg.sender, mintDepositorCoinAmount);
     }
 }
