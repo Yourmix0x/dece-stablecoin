@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
 
-contract EthUsdPrice {
+contract Oracle {
     uint256 private price;
     address private owner;
 
@@ -14,10 +14,7 @@ contract EthUsdPrice {
     }
 
     function setPrice(uint256 newPrice) external {
-        require(
-            msg.sender == owner,
-            "TthUsdPrice: Only owner can set this price"
-        );
+        require(msg.sender == owner, "Oracle: Only owner can set this price");
         price = newPrice;
     }
 }

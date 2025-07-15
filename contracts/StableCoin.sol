@@ -3,30 +3,40 @@ pragma solidity ^0.8.19;
 
 import {ERC20} from "./ERC20.sol";
 import {DepositorCoin} from "./DepositorCoin.sol";
-import {EthUsdPrice} from "./EthUsdPrice.sol";
+import {Oracle} from "./Oracle.sol";
 
 contract StableCoin is ERC20 {
     DepositorCoin public depositorCoin;
-    EthUsdPrice public ethUsdPrice;
+    Oracle public oracle;
+    uint256 public feeRatePercentage;
 
     constructor(
         string memory _name,
         string memory _symbol,
-        EthUsdPrice _ethUsdPrice
+        Oracle _oracle,
+        uint _feeRatePercentage
     ) ERC20(_name, _symbol, 18) {
-        ethUsdPrice = _ethUsdPrice;
+        oracle = _oracle;
+        feeRatePercentage = _feeRatePercentage;
+    }
+
+    function _getFee(uint256 ethAmount) private view returns (uint256) {
+        return (ethAmount * feeRatePercentage) / 100;
     }
 
     function mint() external payable {
-        uint256 mintStableCoinAmount = msg.value * ethUsdPrice.getPrice();
+        uint256 fee = _getFee(msg.value);
+        uint256 mintStableCoinAmount = (msg.value - fee) * oracle.getPrice();
         _mint(msg.sender, mintStableCoinAmount);
     }
 
     function burn(uint256 burnStableCoinAmount) external {
         _burn(msg.sender, burnStableCoinAmount);
 
-        uint256 refundingEth = burnStableCoinAmount / ethUsdPrice.getPrice();
-        (bool success, ) = msg.sender.call{value: refundingEth}("");
+        uint256 refundingEth = burnStableCoinAmount / oracle.getPrice();
+
+        uint256 fee = _getFee(refundingEth);
+        (bool success, ) = msg.sender.call{value: refundingEth - fee}("");
         require(success, "SCT: Burn refund transaction failed");
     }
 
@@ -38,7 +48,7 @@ contract StableCoin is ERC20 {
 
         // mintDepositorCoinAmount = 0.5e18 * 1000 * 0.5 = 250e18
         uint256 mintDepositorCoinAmount = msg.value *
-            ethUsdPrice.getPrice() *
+            oracle.getPrice() *
             usdInDpcPrice;
 
         depositorCoin.mint(msg.sender, mintDepositorCoinAmount);
@@ -57,7 +67,7 @@ contract StableCoin is ERC20 {
         // 125 /0.5 = 250
         uint256 refundingUsd = burnDepositorCoinAmount / usdInDpcPrice;
 
-        uint256 refundingEth = refundingUsd / ethUsdPrice.getPrice();
+        uint256 refundingEth = refundingUsd / oracle.getPrice();
 
         (bool success, ) = msg.sender.call{value: refundingEth}("");
         require(success, "SCT: Withdraw collateral buffer transaction failed");
@@ -65,7 +75,7 @@ contract StableCoin is ERC20 {
 
     function _getSurplusInContractInUsd() private view returns (uint256) {
         uint256 ethContractBalanceInUsd = (address(this).balance - msg.value) *
-            ethUsdPrice.getPrice();
+            oracle.getPrice();
 
         uint256 totalStableCoinBalanceInUsd = totalSupply;
 
