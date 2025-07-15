@@ -27,11 +27,11 @@ contract StableCoin is ERC20 {
     }
 
     function depositorCollateralBuffer() external payable {
-        uint256 surplusUsd = 500;
+        uint256 surplusInUsd = _getSurplusInContractInUsd();
         uint256 ethUsdPrice = 1000;
 
         // usdInDpcPrice = 200 / 500
-        uint256 usdInDpcPrice = depositorCoin.totalSupply() / surplusUsd;
+        uint256 usdInDpcPrice = depositorCoin.totalSupply() / surplusInUsd;
 
         // mintDepositorCoinAmount = 0.5e18 * 1000 * 0.5 = 250e18
         uint256 mintDepositorCoinAmount = msg.value *
@@ -39,5 +39,39 @@ contract StableCoin is ERC20 {
             usdInDpcPrice;
 
         depositorCoin.mint(msg.sender, mintDepositorCoinAmount);
+    }
+
+    function withdrawCollateralBuffer(
+        uint256 burnDepositorCoinAmount
+    ) external {
+        uint256 surplusInUsd = _getSurplusInContractInUsd();
+
+        uint256 ethUsdPrice = 1000;
+
+        depositorCoin.burn(msg.sender, burnDepositorCoinAmount);
+
+        // usdInDpcPrice = 250 / 500 = 0.5
+        uint256 usdInDpcPrice = depositorCoin.totalSupply() / surplusInUsd;
+
+        // 125 /0.5 = 250
+        uint256 refundingUsd = burnDepositorCoinAmount / usdInDpcPrice;
+
+        uint256 refundingEth = refundingUsd / ethUsdPrice;
+
+        (bool success, ) = msg.sender.call{value: refundingEth}("");
+        require(success, "SCT: Withdraw collateral buffer transaction failed");
+    }
+
+    function _getSurplusInContractInUsd() private view returns (uint256) {
+        uint256 ethUsdPrice = 1000;
+
+        uint256 ethContractBalanceInUsd = (address(this).balance - msg.value) *
+            ethUsdPrice;
+
+        uint256 totalStableCoinBalanceInUsd = totalSupply;
+
+        uint256 surplus = ethContractBalanceInUsd - totalStableCoinBalanceInUsd;
+
+        return surplus;
     }
 }
