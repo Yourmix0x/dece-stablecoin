@@ -3,39 +3,42 @@ pragma solidity ^0.8.19;
 
 import {ERC20} from "./ERC20.sol";
 import {DepositorCoin} from "./DepositorCoin.sol";
+import {EthUsdPrice} from "./EthUsdPrice.sol";
 
 contract StableCoin is ERC20 {
     DepositorCoin public depositorCoin;
+    EthUsdPrice public ethUsdPrice;
+
     constructor(
         string memory _name,
-        string memory _symbol
-    ) ERC20(_name, _symbol, 18) {}
+        string memory _symbol,
+        EthUsdPrice _ethUsdPrice
+    ) ERC20(_name, _symbol, 18) {
+        ethUsdPrice = _ethUsdPrice;
+    }
 
     function mint() external payable {
-        uint256 ethUsdPrice = 1000;
-        uint256 mintStableCoinAmount = msg.value * ethUsdPrice;
+        uint256 mintStableCoinAmount = msg.value * ethUsdPrice.getPrice();
         _mint(msg.sender, mintStableCoinAmount);
     }
 
     function burn(uint256 burnStableCoinAmount) external {
         _burn(msg.sender, burnStableCoinAmount);
 
-        uint256 ethUsdPrice = 1000;
-        uint256 refundingEth = burnStableCoinAmount / ethUsdPrice;
+        uint256 refundingEth = burnStableCoinAmount / ethUsdPrice.getPrice();
         (bool success, ) = msg.sender.call{value: refundingEth}("");
         require(success, "SCT: Burn refund transaction failed");
     }
 
     function depositorCollateralBuffer() external payable {
         uint256 surplusInUsd = _getSurplusInContractInUsd();
-        uint256 ethUsdPrice = 1000;
 
         // usdInDpcPrice = 200 / 500
         uint256 usdInDpcPrice = depositorCoin.totalSupply() / surplusInUsd;
 
         // mintDepositorCoinAmount = 0.5e18 * 1000 * 0.5 = 250e18
         uint256 mintDepositorCoinAmount = msg.value *
-            ethUsdPrice *
+            ethUsdPrice.getPrice() *
             usdInDpcPrice;
 
         depositorCoin.mint(msg.sender, mintDepositorCoinAmount);
@@ -46,8 +49,6 @@ contract StableCoin is ERC20 {
     ) external {
         uint256 surplusInUsd = _getSurplusInContractInUsd();
 
-        uint256 ethUsdPrice = 1000;
-
         depositorCoin.burn(msg.sender, burnDepositorCoinAmount);
 
         // usdInDpcPrice = 250 / 500 = 0.5
@@ -56,17 +57,15 @@ contract StableCoin is ERC20 {
         // 125 /0.5 = 250
         uint256 refundingUsd = burnDepositorCoinAmount / usdInDpcPrice;
 
-        uint256 refundingEth = refundingUsd / ethUsdPrice;
+        uint256 refundingEth = refundingUsd / ethUsdPrice.getPrice();
 
         (bool success, ) = msg.sender.call{value: refundingEth}("");
         require(success, "SCT: Withdraw collateral buffer transaction failed");
     }
 
     function _getSurplusInContractInUsd() private view returns (uint256) {
-        uint256 ethUsdPrice = 1000;
-
         uint256 ethContractBalanceInUsd = (address(this).balance - msg.value) *
-            ethUsdPrice;
+            ethUsdPrice.getPrice();
 
         uint256 totalStableCoinBalanceInUsd = totalSupply;
 
