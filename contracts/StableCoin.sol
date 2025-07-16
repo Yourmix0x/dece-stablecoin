@@ -9,15 +9,18 @@ contract StableCoin is ERC20 {
     DepositorCoin public depositorCoin;
     Oracle public oracle;
     uint256 public feeRatePercentage;
+    uint256 public initialCollateralRatioPercentage;
 
     constructor(
         string memory _name,
         string memory _symbol,
         Oracle _oracle,
-        uint _feeRatePercentage
+        uint _feeRatePercentage,
+        uint256 _initialCollateralRatioPercentage
     ) ERC20(_name, _symbol, 18) {
         oracle = _oracle;
         feeRatePercentage = _feeRatePercentage;
+        initialCollateralRatioPercentage = _initialCollateralRatioPercentage;
     }
 
     function _getFee(uint256 ethAmount) private view returns (uint256) {
@@ -41,19 +44,41 @@ contract StableCoin is ERC20 {
     }
 
     function depositorCollateralBuffer() external payable {
-        uint256 surplusInUsd = _getSurplusInContractInUsd();
+        int256 deficitOrSurplusInUsd = _getDeficitOrSurplusInContractInUsd();
 
         uint256 usdInDpcPrice;
+        uint256 addedSurplusEth;
 
-        if (surplusInUsd == 0) {
+        if (deficitOrSurplusInUsd <= 0) {
+            uint256 deficitInUsd = uint256(deficitOrSurplusInUsd * -1);
+            uint256 deficitInEth = deficitInUsd / oracle.getPrice();
+
+            addedSurplusEth = msg.value - deficitInEth;
+
+            uint256 requiredInitialSurplusInUsd = (initialCollateralRatioPercentage *
+                    totalSupply) / 100;
+
+            uint256 requiredInitialSurplusInEth = requiredInitialSurplusInUsd /
+                oracle.getPrice();
+
+            require(
+                addedSurplusEth >= requiredInitialSurplusInEth,
+                "STC: Initial collateral ratio not met"
+            );
+
+            depositorCoin = new DepositorCoin("Depositor Coin", "DPC");
             usdInDpcPrice = 1;
         } else {
+            uint256 surplusInUsd = uint256(deficitOrSurplusInUsd);
+
             // usdInDpcPrice = 200 / 500
             usdInDpcPrice = depositorCoin.totalSupply() / surplusInUsd;
+
+            addedSurplusEth = msg.value;
         }
 
         // mintDepositorCoinAmount = 0.5e18 * 1000 * 0.5 = 250e18
-        uint256 mintDepositorCoinAmount = msg.value *
+        uint256 mintDepositorCoinAmount = addedSurplusEth *
             oracle.getPrice() *
             usdInDpcPrice;
 
@@ -63,7 +88,14 @@ contract StableCoin is ERC20 {
     function withdrawCollateralBuffer(
         uint256 burnDepositorCoinAmount
     ) external {
-        uint256 surplusInUsd = _getSurplusInContractInUsd();
+        int256 deficitOrSurplusInUsd = _getDeficitOrSurplusInContractInUsd();
+
+        require(
+            deficitOrSurplusInUsd > 0,
+            "STC: No depositor funds to withdraw"
+        );
+
+        uint256 surplusInUsd = uint256(deficitOrSurplusInUsd);
 
         depositorCoin.burn(msg.sender, burnDepositorCoinAmount);
 
@@ -79,14 +111,19 @@ contract StableCoin is ERC20 {
         require(success, "SCT: Withdraw collateral buffer transaction failed");
     }
 
-    function _getSurplusInContractInUsd() private view returns (uint256) {
+    function _getDeficitOrSurplusInContractInUsd()
+        private
+        view
+        returns (int256)
+    {
         uint256 ethContractBalanceInUsd = (address(this).balance - msg.value) *
             oracle.getPrice();
 
         uint256 totalStableCoinBalanceInUsd = totalSupply;
 
-        uint256 surplus = ethContractBalanceInUsd - totalStableCoinBalanceInUsd;
+        int256 deficitOrSurplus = int256(ethContractBalanceInUsd) -
+            int256(totalStableCoinBalanceInUsd);
 
-        return surplus;
+        return deficitOrSurplus;
     }
 }
