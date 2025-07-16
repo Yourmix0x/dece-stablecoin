@@ -43,8 +43,14 @@ contract StableCoin is ERC20 {
     function depositorCollateralBuffer() external payable {
         uint256 surplusInUsd = _getSurplusInContractInUsd();
 
-        // usdInDpcPrice = 200 / 500
-        uint256 usdInDpcPrice = depositorCoin.totalSupply() / surplusInUsd;
+        uint256 usdInDpcPrice;
+
+        if (surplusInUsd == 0) {
+            usdInDpcPrice = 1;
+        } else {
+            // usdInDpcPrice = 200 / 500
+            usdInDpcPrice = depositorCoin.totalSupply() / surplusInUsd;
+        }
 
         // mintDepositorCoinAmount = 0.5e18 * 1000 * 0.5 = 250e18
         uint256 mintDepositorCoinAmount = msg.value *
