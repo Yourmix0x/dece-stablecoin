@@ -10,17 +10,20 @@ contract StableCoin is ERC20 {
     Oracle public oracle;
     uint256 public feeRatePercentage;
     uint256 public initialCollateralRatioPercentage;
+    uint256 public depositorCoinLockTime;
 
     constructor(
         string memory _name,
         string memory _symbol,
         Oracle _oracle,
         uint _feeRatePercentage,
-        uint256 _initialCollateralRatioPercentage
+        uint256 _initialCollateralRatioPercentage,
+        uint256 _depositorCoinLockTime
     ) ERC20(_name, _symbol, 18) {
         oracle = _oracle;
         feeRatePercentage = _feeRatePercentage;
         initialCollateralRatioPercentage = _initialCollateralRatioPercentage;
+        depositorCoinLockTime = _depositorCoinLockTime;
     }
 
     function _getFee(uint256 ethAmount) private view returns (uint256) {
@@ -66,7 +69,11 @@ contract StableCoin is ERC20 {
                 "STC: Initial collateral ratio not met"
             );
 
-            depositorCoin = new DepositorCoin("Depositor Coin", "DPC");
+            depositorCoin = new DepositorCoin(
+                "Depositor Coin",
+                "DPC",
+                depositorCoinLockTime
+            );
             usdInDpcPrice = 1;
         } else {
             uint256 surplusInUsd = uint256(deficitOrSurplusInUsd);
