@@ -4,6 +4,7 @@ pragma solidity ^0.8.19;
 import {ERC20} from "./ERC20.sol";
 import {DepositorCoin} from "./DepositorCoin.sol";
 import {Oracle} from "./Oracle.sol";
+import {FixedPoint, fromFraction, mulFixed, divFixed} from "./FixedPoint.sol";
 
 contract StableCoin is ERC20 {
     DepositorCoin public depositorCoin;
@@ -49,8 +50,6 @@ contract StableCoin is ERC20 {
     function depositorCollateralBuffer() external payable {
         int256 deficitOrSurplusInUsd = _getDeficitOrSurplusInContractInUsd();
 
-        uint256 usdInDpcPrice;
-
         if (deficitOrSurplusInUsd <= 0) {
             uint256 deficitInUsd = uint256(deficitOrSurplusInUsd * -1);
             uint256 deficitInEth = deficitInUsd / oracle.getPrice();
@@ -83,13 +82,17 @@ contract StableCoin is ERC20 {
 
         uint256 surplusInUsd = uint256(deficitOrSurplusInUsd);
 
-        // usdInDpcPrice = 200 / 500
-        usdInDpcPrice = depositorCoin.totalSupply() / surplusInUsd;
+        // usdInDpcPrice = 200 / 500 = 0.5e18
+        FixedPoint usdInDpcPrice = fromFraction(
+            depositorCoin.totalSupply(),
+            surplusInUsd
+        );
 
         // mintDepositorCoinAmount = 0.5e18 * 1000 * 0.5 = 250e18
-        uint256 mintDepositorCoinAmount = msg.value *
-            oracle.getPrice() *
-            usdInDpcPrice;
+        uint256 mintDepositorCoinAmount = mulFixed(
+            msg.value * oracle.getPrice(),
+            (usdInDpcPrice)
+        );
 
         depositorCoin.mint(msg.sender, mintDepositorCoinAmount);
     }
@@ -108,11 +111,14 @@ contract StableCoin is ERC20 {
 
         depositorCoin.burn(msg.sender, burnDepositorCoinAmount);
 
-        // usdInDpcPrice = 250 / 500 = 0.5
-        uint256 usdInDpcPrice = depositorCoin.totalSupply() / surplusInUsd;
+        // usdInDpcPrice = 250 / 500 = 0.5e18
+        FixedPoint usdInDpcPrice = fromFraction(
+            depositorCoin.totalSupply(),
+            surplusInUsd
+        );
 
         // 125 /0.5 = 250
-        uint256 refundingUsd = burnDepositorCoinAmount / usdInDpcPrice;
+        uint256 refundingUsd = divFixed(burnDepositorCoinAmount, usdInDpcPrice);
 
         uint256 refundingEth = refundingUsd / oracle.getPrice();
 
