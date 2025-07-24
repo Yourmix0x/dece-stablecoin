@@ -155,4 +155,56 @@ describe("StableCoin", function () {
       }
     });
   });
+
+  describe("DepositorCollateralBuffer Edge Cases", function () {
+    it("Should handle depositorCollateralBuffer when system has small surplus", async function () {
+      const { stableCoin, oracle, user1, user2 } = await loadFixture(
+        deployStableCoinFixture
+      );
+
+      // Step 1: Create the exact scenario you have
+      await stableCoin
+        .connect(user1)
+        .mint({ value: ethers.parseEther("0.01") });
+
+      // Check current state
+      const totalSupply = await stableCoin.totalSupply();
+      const contractBalance = await ethers.provider.getBalance(
+        await stableCoin.getAddress()
+      );
+
+      console.log("Total supply:", ethers.formatEther(totalSupply));
+      console.log("Contract balance:", ethers.formatEther(contractBalance));
+
+      // Step 2: Try depositorCollateralBuffer (this should reveal your bug)
+      await expect(
+        stableCoin
+          .connect(user2)
+          .depositorCollateralBuffer({ value: ethers.parseEther("0.02") })
+      ).to.not.be.reverted;
+
+      // Step 3: Verify DepositorCoin was created
+      const depositorCoinAddress = await stableCoin.depositorCoin();
+      expect(depositorCoinAddress).to.not.equal(ethers.ZeroAddress);
+    });
+
+    it("Should handle the case where DepositorCoin doesn't exist yet", async function () {
+      const { stableCoin, user1 } = await loadFixture(deployStableCoinFixture);
+
+      // Mint just enough to create small surplus
+      await stableCoin
+        .connect(user1)
+        .mint({ value: ethers.parseEther("0.01") });
+
+      // DepositorCoin should be zero address initially
+      expect(await stableCoin.depositorCoin()).to.equal(ethers.ZeroAddress);
+
+      // This should NOT revert even with surplus + no DepositorCoin
+      await expect(
+        stableCoin
+          .connect(user1)
+          .depositorCollateralBuffer({ value: ethers.parseEther("0.02") })
+      ).to.not.be.reverted;
+    });
+  });
 });

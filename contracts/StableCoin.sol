@@ -59,8 +59,14 @@ contract StableCoin is ERC20 {
     function depositorCollateralBuffer() external payable {
         int256 deficitOrSurplusInUsd = _getDeficitOrSurplusInContractInUsd();
 
-        if (deficitOrSurplusInUsd <= 0) {
-            uint256 deficitInUsd = uint256(deficitOrSurplusInUsd * -1);
+        // FIX: Check if DepositorCoin exists OR if there's a deficit
+        if (
+            address(depositorCoin) == address(0) || deficitOrSurplusInUsd <= 0
+        ) {
+            // Handle first-time deposit or deficit scenario
+            uint256 deficitInUsd = deficitOrSurplusInUsd <= 0
+                ? uint256(deficitOrSurplusInUsd * -1)
+                : 0;
             uint256 deficitInEth = (deficitInUsd * PRECISION) /
                 oracle.getPrice();
 
@@ -68,16 +74,13 @@ contract StableCoin is ERC20 {
 
             uint256 requiredInitialSurplusInUsd = (initialCollateralRatioPercentage *
                     (totalSupply / PRECISION)) / 100;
-
             uint256 requiredInitialSurplusInEth = (requiredInitialSurplusInUsd *
                 PRECISION) / oracle.getPrice();
 
-            if (addedSurplusEth < requiredInitialSurplusInEth) {
-                revert InitialCollateralRatioError(
-                    "STC: Initial collateral ratio not met, minimum is",
-                    requiredInitialSurplusInEth
-                );
-            }
+            require(
+                addedSurplusEth >= requiredInitialSurplusInEth,
+                "STC: Initial collateral ratio not met"
+            );
 
             uint256 initialDepositorSupply = (addedSurplusEth *
                 oracle.getPrice()) / PRECISION;
@@ -92,18 +95,17 @@ contract StableCoin is ERC20 {
             return;
         }
 
+        // Handle existing DepositorCoin + surplus scenario
         uint256 surplusInUsd = uint256(deficitOrSurplusInUsd);
 
-        // usdInDpcPrice = 200 / 500 = 0.5e18
         FixedPoint usdInDpcPrice = fromFraction(
             depositorCoin.totalSupply(),
             surplusInUsd
         );
 
-        // mintDepositorCoinAmount = 0.5e18 * 1000 * 0.5 = 250e18
         uint256 mintDepositorCoinAmount = mulFixed(
             (msg.value * oracle.getPrice()) / PRECISION,
-            (usdInDpcPrice)
+            usdInDpcPrice
         );
 
         depositorCoin.mint(msg.sender, mintDepositorCoinAmount);
