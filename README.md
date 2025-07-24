@@ -1,27 +1,30 @@
-# ERC20 Token Implementation with Hardhat
+# Decentralized StableCoin (DECE) with Hardhat
 
-This project demonstrates a custom ERC20 token implementation built with Hardhat. It includes a basic ERC20 contract, comprehensive tests, and deployment scripts.
+This project implements a decentralized stablecoin system with collateral management and depositor rewards. It features an algorithmic stablecoin backed by ETH collateral with dynamic pricing through an oracle system.
 
 ## Features
 
-- ✅ Custom ERC20 token implementation
-- ✅ Standard ERC20 functions (transfer, approve, transferFrom)
-- ✅ Minting and burning capabilities
+- ✅ ETH-backed stablecoin with oracle price feeds
+- ✅ Dynamic fee system for minting and burning
+- ✅ Collateral buffer mechanism with DepositorCoin rewards
+- ✅ Fixed-point arithmetic for precise calculations
+- ✅ Deficit/surplus management system
 - ✅ Comprehensive test suite
-- ✅ Mock contract for testing
-- ✅ Deployment scripts
 - ✅ TypeChain integration for type-safe contract interactions
 
 ## Project Structure
 
 ```
 contracts/
-├── ERC20.sol           # Main ERC20 token contract
+├── StableCoin.sol       # Main stablecoin contract with minting/burning
+├── DepositorCoin.sol    # Reward token for collateral providers
+├── ERC20.sol           # Base ERC20 implementation
+├── FixedPoint.sol      # Fixed-point arithmetic library
 └── mocks/
     └── ERC20Mock.sol   # Mock contract for testing
 
 test/
-└── ERC20.ts           # Comprehensive test suite
+└── StableCoin.ts       # Comprehensive test suite for stablecoin
 
 scripts/
 └── deploy.ts          # Deployment script
@@ -32,16 +35,33 @@ ignition/
 
 ## Smart Contracts
 
-### ERC20.sol
-The main ERC20 token contract implementing:
-- `transfer()` - Transfer tokens between addresses
-- `approve()` - Approve spender allowance
-- `transferFrom()` - Transfer tokens on behalf of another address
-- `_mint()` - Internal function to mint new tokens
-- `_burn()` - Internal function to burn tokens
+### StableCoin.sol
+The main stablecoin contract implementing:
+- `mint()` - Mint stablecoins by sending ETH (with oracle pricing)
+- `burn()` - Burn stablecoins to redeem ETH (with fees)
+- `depositorCollateralBuffer()` - Provide collateral and earn DepositorCoins
+- `withdrawCollateralBuffer()` - Withdraw collateral by burning DepositorCoins
+- Deficit/surplus calculation and management
+- Oracle integration for dynamic ETH/USD pricing
 
-### ERC20Mock.sol
-A mock contract extending the main ERC20 contract with a public `mint()` function for testing purposes.
+### DepositorCoin.sol
+A reward token for users who provide collateral to the system:
+- Extends ERC20 with ownership controls
+- Given to users who help stabilize the system
+- Can be burned to withdraw collateral
+
+### ERC20.sol
+Base ERC20 implementation with:
+- Standard transfer, approve, transferFrom functions
+- Internal minting and burning capabilities
+- Custom decimal support
+
+### FixedPoint.sol
+Library for precise decimal arithmetic:
+- Custom FixedPoint type with 18 decimal precision
+- Mathematical operations (add, sub, mul, div)
+- Fraction conversion utilities
+- Mixed operations with regular integers
 
 ## Getting Started
 
@@ -67,6 +87,23 @@ Edit `.env` with your configuration:
 - `PRIVATE_KEY` - Your wallet private key
 - `ETHERSCAN_API_KEY` - Your Etherscan API key for verification
 
+## How It Works
+
+### StableCoin Mechanism
+1. **Minting**: Users send ETH to mint stablecoins at current oracle price (minus fees)
+2. **Burning**: Users burn stablecoins to redeem ETH at current oracle price (minus fees)
+3. **Collateral Buffer**: When the system has a deficit, users can provide extra collateral and earn DepositorCoins
+4. **Price Stability**: Oracle provides real-time ETH/USD pricing for accurate conversions
+
+### Fee System
+- Configurable fee percentage on all minting and burning operations
+- Fees help maintain system stability and provide revenue
+
+### Collateral Management
+- System tracks deficit/surplus based on ETH holdings vs stablecoin supply
+- DepositorCoin rewards incentivize users to provide additional collateral
+- Minimum collateral ratio requirements ensure system stability
+
 ## Usage
 
 ### Compile Contracts
@@ -90,6 +127,18 @@ npx hardhat run scripts/deploy.ts --network localhost
 npx hardhat run scripts/deploy.ts --network sepolia
 ```
 
+### Interact with StableCoin
+```bash
+# Mint stablecoins (send ETH)
+npx hardhat console --network localhost
+> const StableCoin = await ethers.getContractFactory("StableCoin");
+> const stableCoin = StableCoin.attach("DEPLOYED_ADDRESS");
+> await stableCoin.mint({ value: ethers.parseEther("1.0") });
+
+# Check balance
+> await stableCoin.balanceOf("YOUR_ADDRESS");
+```
+
 ### Run Tests with Gas Reporting
 ```bash
 REPORT_GAS=true npx hardhat test
@@ -97,19 +146,25 @@ REPORT_GAS=true npx hardhat test
 
 ## Contract Details
 
-The ERC20 token is deployed with the following parameters:
-- **Name**: YOU
-- **Symbol**: Yourmix0x
+The StableCoin system is deployed with the following parameters:
+- **Name**: Test Stable Coin
+- **Symbol**: TSC
 - **Decimals**: 18
+- **Fee Rate**: 5% (configurable)
+- **Initial Collateral Ratio**: 150% (configurable)
+- **Depositor Coin Lock Time**: 24 hours (configurable)
 
 ## Testing
 
 The test suite covers:
-- ✅ Token transfers between accounts
-- ✅ Balance updates after transfers
-- ✅ Insufficient balance error handling
-- ✅ Transfer event emissions
-- ✅ Approval and allowance mechanisms
+- ✅ StableCoin minting with ETH deposits
+- ✅ StableCoin burning with ETH redemption
+- ✅ Fee calculations and deductions
+- ✅ Oracle price integration
+- ✅ Collateral buffer mechanism
+- ✅ DepositorCoin creation and management
+- ✅ Error handling and edge cases
+- ✅ Fixed-point arithmetic precision
 
 Run the tests with:
 ```bash
@@ -125,11 +180,21 @@ This project is configured for:
 ## Security Considerations
 
 ⚠️ **Important**: This is a learning/demonstration project. For production use, consider:
-- Adding access controls
-- Implementing pausable functionality
+- Professional smart contract audits
+- Implementing emergency pause mechanisms
 - Adding reentrancy guards
-- Comprehensive security audits
-- Using established libraries like OpenZeppelin
+- Robust oracle manipulation protection
+- Governance mechanisms for parameter updates
+- Insurance mechanisms for extreme market events
+- Comprehensive testing under various market conditions
+
+## Key Concepts Demonstrated
+
+- **Algorithmic Stablecoins**: Price stability through collateral backing
+- **Oracle Integration**: Real-time price feeds for accurate conversions
+- **Fixed-Point Arithmetic**: Precise decimal calculations in Solidity
+- **Collateral Management**: Dynamic surplus/deficit handling
+- **Incentive Mechanisms**: DepositorCoin rewards for system participation
 
 ## Contributing
 

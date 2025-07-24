@@ -7,7 +7,7 @@ type FixedPoint is uint256;
 using {add as +} for FixedPoint global;
 using {sub as -} for FixedPoint global;
 using {mul as *} for FixedPoint global;
-using {mul as /} for FixedPoint global;
+using {div as /} for FixedPoint global;
 
 uint256 constant DECIMALS = 1e18;
 

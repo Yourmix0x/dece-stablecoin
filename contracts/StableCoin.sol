@@ -13,6 +13,8 @@ contract StableCoin is ERC20 {
     uint256 public initialCollateralRatioPercentage;
     uint256 public depositorCoinLockTime;
 
+    uint256 private constant PRECISION = 1e18;
+
     error InitialCollateralRatioError(
         string message,
         uint256 minimumDepositAmount
@@ -38,14 +40,16 @@ contract StableCoin is ERC20 {
 
     function mint() external payable {
         uint256 fee = _getFee(msg.value);
-        uint256 mintStableCoinAmount = (msg.value - fee) * oracle.getPrice();
+        uint256 mintStableCoinAmount = ((msg.value - fee) * oracle.getPrice()) /
+            PRECISION;
         _mint(msg.sender, mintStableCoinAmount);
     }
 
     function burn(uint256 burnStableCoinAmount) external {
         _burn(msg.sender, burnStableCoinAmount);
 
-        uint256 refundingEth = burnStableCoinAmount / oracle.getPrice();
+        uint256 refundingEth = (burnStableCoinAmount * PRECISION) /
+            oracle.getPrice();
 
         uint256 fee = _getFee(refundingEth);
         (bool success, ) = msg.sender.call{value: refundingEth - fee}("");
@@ -57,15 +61,16 @@ contract StableCoin is ERC20 {
 
         if (deficitOrSurplusInUsd <= 0) {
             uint256 deficitInUsd = uint256(deficitOrSurplusInUsd * -1);
-            uint256 deficitInEth = deficitInUsd / oracle.getPrice();
+            uint256 deficitInEth = (deficitInUsd * PRECISION) /
+                oracle.getPrice();
 
             uint256 addedSurplusEth = msg.value - deficitInEth;
 
             uint256 requiredInitialSurplusInUsd = (initialCollateralRatioPercentage *
-                    totalSupply) / 100;
+                    (totalSupply / PRECISION)) / 100;
 
-            uint256 requiredInitialSurplusInEth = requiredInitialSurplusInUsd /
-                oracle.getPrice();
+            uint256 requiredInitialSurplusInEth = (requiredInitialSurplusInUsd *
+                PRECISION) / oracle.getPrice();
 
             if (addedSurplusEth < requiredInitialSurplusInEth) {
                 revert InitialCollateralRatioError(
@@ -74,8 +79,8 @@ contract StableCoin is ERC20 {
                 );
             }
 
-            uint256 initialDepositorSupply = addedSurplusEth *
-                oracle.getPrice();
+            uint256 initialDepositorSupply = (addedSurplusEth *
+                oracle.getPrice()) / PRECISION;
 
             depositorCoin = new DepositorCoin(
                 "Depositor Coin",
@@ -97,7 +102,7 @@ contract StableCoin is ERC20 {
 
         // mintDepositorCoinAmount = 0.5e18 * 1000 * 0.5 = 250e18
         uint256 mintDepositorCoinAmount = mulFixed(
-            msg.value * oracle.getPrice(),
+            (msg.value * oracle.getPrice()) / PRECISION,
             (usdInDpcPrice)
         );
 
@@ -127,7 +132,7 @@ contract StableCoin is ERC20 {
         // 125 /0.5 = 250
         uint256 refundingUsd = divFixed(burnDepositorCoinAmount, usdInDpcPrice);
 
-        uint256 refundingEth = refundingUsd / oracle.getPrice();
+        uint256 refundingEth = (refundingUsd * PRECISION) / oracle.getPrice();
 
         (bool success, ) = msg.sender.call{value: refundingEth}("");
         require(success, "SCT: Withdraw collateral buffer transaction failed");
@@ -138,10 +143,11 @@ contract StableCoin is ERC20 {
         view
         returns (int256)
     {
-        uint256 ethContractBalanceInUsd = (address(this).balance - msg.value) *
-            oracle.getPrice();
+        uint256 ethContractBalanceInUsd = ((address(this).balance - msg.value) *
+            oracle.getPrice()) / PRECISION;
 
-        uint256 totalStableCoinBalanceInUsd = totalSupply;
+        // Convert wei to tokens
+        uint256 totalStableCoinBalanceInUsd = totalSupply / PRECISION;
 
         int256 deficitOrSurplus = int256(ethContractBalanceInUsd) -
             int256(totalStableCoinBalanceInUsd);
