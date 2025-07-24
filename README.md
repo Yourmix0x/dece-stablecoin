@@ -1,4 +1,4 @@
-# Decentralized StableCoin (DECE) with Hardhat
+# Decentralized StableCoin (DECE)
 
 This project implements a decentralized stablecoin system with collateral management and depositor rewards. It features an algorithmic stablecoin backed by ETH collateral with dynamic pricing through an oracle system.
 
@@ -20,8 +20,7 @@ contracts/
 ├── DepositorCoin.sol    # Reward token for collateral providers
 ├── ERC20.sol           # Base ERC20 implementation
 ├── FixedPoint.sol      # Fixed-point arithmetic library
-└── mocks/
-    └── ERC20Mock.sol   # Mock contract for testing
+
 
 test/
 └── StableCoin.ts       # Comprehensive test suite for stablecoin
@@ -203,7 +202,3 @@ This project is configured for:
 3. Make your changes
 4. Add tests for new functionality
 5. Submit a pull request
-
-## License
-
-This project is licensed under the MIT License.
